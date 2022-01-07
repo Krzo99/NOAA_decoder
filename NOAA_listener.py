@@ -25,9 +25,10 @@ from PyQt5 import Qt
 from gnuradio import qtgui
 from gnuradio.filter import firdes
 import sip
+from datetime import datetime
 from gnuradio import analog
+from gnuradio import audio
 from gnuradio import blocks
-import pmt
 from gnuradio import filter
 from gnuradio import gr
 import sys
@@ -77,21 +78,19 @@ class NOAA_listener(gr.top_block, Qt.QWidget):
         ##################################################
         # Variables
         ##################################################
-        self.SeletedSatFreq = SeletedSatFreq = 137620000
-        self.BaudRate = BaudRate = 4160
-        self.variable_qtgui_range_0 = variable_qtgui_range_0 = SeletedSatFreq
+        self.variable_qtgui_range_0 = variable_qtgui_range_0 = 10000
         self.samp_rate = samp_rate = 250000
-        self.SampleRate = SampleRate = 4*BaudRate
-        self.Contrast = Contrast = 300
+        self.WavOutName = WavOutName = "H:/Projects/NOAA_listener/Data/" + datetime.now().strftime("%Y.%m.%d.%H.%M.%S") + ".wav"
+        self.SampleRate = SampleRate = 11025
 
         ##################################################
         # Blocks
         ##################################################
-        self.zeromq_push_sink_0 = zeromq.push_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:65443', 100, False, -1)
-        self._variable_qtgui_range_0_range = Range(SeletedSatFreq-10000, SeletedSatFreq+10000, 1, SeletedSatFreq, 1000)
-        self._variable_qtgui_range_0_win = RangeWidget(self._variable_qtgui_range_0_range, self.set_variable_qtgui_range_0, "Frequency shift:", "counter_slider", int)
+        self._variable_qtgui_range_0_range = Range(0, 50000, 100, 10000, 200)
+        self._variable_qtgui_range_0_win = RangeWidget(self._variable_qtgui_range_0_range, self.set_variable_qtgui_range_0, "Contrast", "counter_slider", int)
         self.top_grid_layout.addWidget(self._variable_qtgui_range_0_win)
-        self.qtgui_sink_x_0 = qtgui.sink_c(
+        self.zeromq_push_sink_0 = zeromq.push_sink(gr.sizeof_char, 1, 'tcp://127.0.0.1:65443', 100, False, -1)
+        self.qtgui_sink_x_0_0 = qtgui.sink_f(
             1024, #fftsize
             firdes.WIN_BLACKMAN_hARRIS, #wintype
             0, #fc
@@ -102,41 +101,24 @@ class NOAA_listener(gr.top_block, Qt.QWidget):
             True, #plottime
             True #plotconst
         )
-        self.qtgui_sink_x_0.set_update_time(1.0/10)
-        self._qtgui_sink_x_0_win = sip.wrapinstance(self.qtgui_sink_x_0.pyqwidget(), Qt.QWidget)
+        self.qtgui_sink_x_0_0.set_update_time(1.0/10)
+        self._qtgui_sink_x_0_0_win = sip.wrapinstance(self.qtgui_sink_x_0_0.pyqwidget(), Qt.QWidget)
 
-        self.qtgui_sink_x_0.enable_rf_freq(False)
+        self.qtgui_sink_x_0_0.enable_rf_freq(False)
 
-        self.top_grid_layout.addWidget(self._qtgui_sink_x_0_win)
-        self.pfb_arb_resampler_xxx_0_0 = pfb.arb_resampler_fff(
-            BaudRate/SampleRate,
-            taps=None,
-            flt_size=32)
-        self.pfb_arb_resampler_xxx_0_0.declare_sample_delay(0)
+        self.top_grid_layout.addWidget(self._qtgui_sink_x_0_0_win)
         self.pfb_arb_resampler_xxx_0 = pfb.arb_resampler_fff(
-            SampleRate/samp_rate,
+            SampleRate/samp_rate*2,
             taps=None,
             flt_size=32)
         self.pfb_arb_resampler_xxx_0.declare_sample_delay(0)
-        self.low_pass_filter_0 = filter.fir_filter_fff(
-            1,
-            firdes.low_pass(
-                1,
-                SampleRate,
-                4160,
-                10,
-                firdes.WIN_HAMMING,
-                6.76))
         self.hilbert_fc_0 = filter.hilbert_fc(10, firdes.WIN_HAMMING, 6.76)
-        self.blocks_wavfile_sink_0 = blocks.wavfile_sink('F:\\Downloads\\backupRecording.wav', 2, samp_rate, 16)
-        self.blocks_throttle_0 = blocks.throttle(gr.sizeof_gr_complex*1, samp_rate,True)
-        self.blocks_multiply_const_vxx_0 = blocks.multiply_const_ff(Contrast)
+        self.blocks_wavfile_sink_0 = blocks.wavfile_sink(WavOutName, 1, samp_rate, 16)
+        self.blocks_throttle_0 = blocks.throttle(gr.sizeof_float*1, samp_rate,True)
+        self.blocks_multiply_const_vxx_0 = blocks.multiply_const_ff(variable_qtgui_range_0)
         self.blocks_float_to_uchar_0 = blocks.float_to_uchar()
-        self.blocks_file_source_0 = blocks.file_source(gr.sizeof_gr_complex*1, 'H:\\Projects\\MeteorM2 listener\\GNURadio\\test\\good_og.wav', True, 0, 0)
-        self.blocks_file_source_0.set_begin_tag(pmt.PMT_NIL)
         self.blocks_complex_to_mag_0 = blocks.complex_to_mag(1)
-        self.blocks_complex_to_float_1 = blocks.complex_to_float(1)
-        self.blocks_complex_to_float_0 = blocks.complex_to_float(1)
+        self.audio_source_0 = audio.source(samp_rate, '', True)
         self.analog_rail_ff_0 = analog.rail_ff(0, 255)
 
 
@@ -145,20 +127,15 @@ class NOAA_listener(gr.top_block, Qt.QWidget):
         # Connections
         ##################################################
         self.connect((self.analog_rail_ff_0, 0), (self.blocks_float_to_uchar_0, 0))
-        self.connect((self.blocks_complex_to_float_0, 0), (self.blocks_multiply_const_vxx_0, 0))
-        self.connect((self.blocks_complex_to_float_1, 1), (self.blocks_wavfile_sink_0, 1))
-        self.connect((self.blocks_complex_to_float_1, 0), (self.blocks_wavfile_sink_0, 0))
-        self.connect((self.blocks_complex_to_mag_0, 0), (self.pfb_arb_resampler_xxx_0_0, 0))
-        self.connect((self.blocks_file_source_0, 0), (self.blocks_throttle_0, 0))
+        self.connect((self.analog_rail_ff_0, 0), (self.qtgui_sink_x_0_0, 0))
+        self.connect((self.audio_source_0, 0), (self.blocks_throttle_0, 0))
+        self.connect((self.blocks_complex_to_mag_0, 0), (self.analog_rail_ff_0, 0))
         self.connect((self.blocks_float_to_uchar_0, 0), (self.zeromq_push_sink_0, 0))
         self.connect((self.blocks_multiply_const_vxx_0, 0), (self.pfb_arb_resampler_xxx_0, 0))
-        self.connect((self.blocks_throttle_0, 0), (self.blocks_complex_to_float_0, 0))
-        self.connect((self.blocks_throttle_0, 0), (self.blocks_complex_to_float_1, 0))
-        self.connect((self.blocks_throttle_0, 0), (self.qtgui_sink_x_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.blocks_multiply_const_vxx_0, 0))
+        self.connect((self.blocks_throttle_0, 0), (self.blocks_wavfile_sink_0, 0))
         self.connect((self.hilbert_fc_0, 0), (self.blocks_complex_to_mag_0, 0))
-        self.connect((self.low_pass_filter_0, 0), (self.hilbert_fc_0, 0))
-        self.connect((self.pfb_arb_resampler_xxx_0, 0), (self.low_pass_filter_0, 0))
-        self.connect((self.pfb_arb_resampler_xxx_0_0, 0), (self.analog_rail_ff_0, 0))
+        self.connect((self.pfb_arb_resampler_xxx_0, 0), (self.hilbert_fc_0, 0))
 
 
     def closeEvent(self, event):
@@ -166,26 +143,12 @@ class NOAA_listener(gr.top_block, Qt.QWidget):
         self.settings.setValue("geometry", self.saveGeometry())
         event.accept()
 
-    def get_SeletedSatFreq(self):
-        return self.SeletedSatFreq
-
-    def set_SeletedSatFreq(self, SeletedSatFreq):
-        self.SeletedSatFreq = SeletedSatFreq
-        self.set_variable_qtgui_range_0(self.SeletedSatFreq)
-
-    def get_BaudRate(self):
-        return self.BaudRate
-
-    def set_BaudRate(self, BaudRate):
-        self.BaudRate = BaudRate
-        self.set_SampleRate(4*self.BaudRate)
-        self.pfb_arb_resampler_xxx_0_0.set_rate(self.BaudRate/self.SampleRate)
-
     def get_variable_qtgui_range_0(self):
         return self.variable_qtgui_range_0
 
     def set_variable_qtgui_range_0(self, variable_qtgui_range_0):
         self.variable_qtgui_range_0 = variable_qtgui_range_0
+        self.blocks_multiply_const_vxx_0.set_k(self.variable_qtgui_range_0)
 
     def get_samp_rate(self):
         return self.samp_rate
@@ -193,24 +156,22 @@ class NOAA_listener(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.blocks_throttle_0.set_sample_rate(self.samp_rate)
-        self.pfb_arb_resampler_xxx_0.set_rate(self.SampleRate/self.samp_rate)
-        self.qtgui_sink_x_0.set_frequency_range(0, self.samp_rate)
+        self.pfb_arb_resampler_xxx_0.set_rate(self.SampleRate/self.samp_rate*2)
+        self.qtgui_sink_x_0_0.set_frequency_range(0, self.samp_rate)
+
+    def get_WavOutName(self):
+        return self.WavOutName
+
+    def set_WavOutName(self, WavOutName):
+        self.WavOutName = WavOutName
+        self.blocks_wavfile_sink_0.open(self.WavOutName)
 
     def get_SampleRate(self):
         return self.SampleRate
 
     def set_SampleRate(self, SampleRate):
         self.SampleRate = SampleRate
-        self.low_pass_filter_0.set_taps(firdes.low_pass(1, self.SampleRate, 4160, 10, firdes.WIN_HAMMING, 6.76))
-        self.pfb_arb_resampler_xxx_0.set_rate(self.SampleRate/self.samp_rate)
-        self.pfb_arb_resampler_xxx_0_0.set_rate(self.BaudRate/self.SampleRate)
-
-    def get_Contrast(self):
-        return self.Contrast
-
-    def set_Contrast(self, Contrast):
-        self.Contrast = Contrast
-        self.blocks_multiply_const_vxx_0.set_k(self.Contrast)
+        self.pfb_arb_resampler_xxx_0.set_rate(self.SampleRate/self.samp_rate*2)
 
 
 

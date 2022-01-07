@@ -1,20 +1,24 @@
 import zmq
 import numpy as np
 import cv2
-from PyQt5.QtWidgets import QApplication, QLabel
+import time
 
 #  Settings
-width = 2080
-windowName = "NOAA decoder"
-OutimgPath = r'H:\Projects\MeteorM2 listener\GNURadio\outImg.png'
+inBaud = 11025
+imgWidth = 2080
+
+date_string = time.strftime("%Y-%m-%d-%H_%M_%S")
+windowName = date_string
+OutImgPath = r"H:\Projects\NOAA_listener\out\\" + date_string + ".png"
 
 #  GUI
 cv2.namedWindow(windowName, cv2.WINDOW_AUTOSIZE)
 
-Line = np.zeros((1, width), dtype=np.uint8)
-img = np.zeros((1, width), dtype=np.uint8)
+# Data
+Line = np.zeros((1, inBaud), dtype=np.uint8)
+img = np.zeros((1, imgWidth), dtype=np.uint8)
 LineIndex = 0
-
+bEnd = False
 
 #  Server
 context = zmq.Context()
@@ -23,7 +27,7 @@ socket.connect("tcp://127.0.0.1:65443")
 
 print("Server start!")
 
-while True:
+while not bEnd:
     #  Wait for next request from client
     try:
         # check for a message, this will not block
@@ -31,27 +35,31 @@ while True:
 
         # a message has been received, Process data
         for i in message:
-
             Line[0][LineIndex] = i
-            if LineIndex >= 2079:
-                img = np.append(img, Line, axis=0)
+
+            if LineIndex >= inBaud - 1:
+
+                if Line.any():
+                    resized_Line = cv2.resize(Line, (imgWidth, 1))
+                    img = np.append(img, resized_Line, axis=0)
+
+                    cv2.imwrite(OutImgPath, img)
+                    cv2.imshow(windowName, img)
+
+                    if cv2.waitKey(33) == ord('x'):
+                        print("Decoding ended, Image saved to", OutImgPath)
+
+                        cv2.imshow(windowName, img)
+                        cv2.waitKey(0)
+
+                        bEnd = True
+                    print("Lines:", img.shape[0])
                 Line.fill(0)
                 LineIndex = 0
-
-                cv2.imwrite(OutimgPath, img)
-                cv2.imshow(windowName, img)
-                cv2.waitKey(1)
-                print(img.shape[0])
             else:
                 LineIndex += 1
 
     except zmq.Again as e:
         pass
-
-    #  Do some 'work'
-    #time.sleep(1)
-
-    #  Send reply back to client
-    #socket.send(b"World")
 
 
